@@ -33,7 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+  const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+  const API_BASE = rawBase.replace(/\/+$/, '');
 
   useEffect(() => {
     const savedToken = localStorage.getItem('asm_jwt_token');

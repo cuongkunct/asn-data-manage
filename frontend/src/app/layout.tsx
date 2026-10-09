@@ -13,7 +13,14 @@ const fontSans = Be_Vietnam_Pro({
 
 export const metadata: Metadata = {
   title: 'ASM - Account & Customer Data Management System',
-  description: 'High-performance, real-time ASM system powered by NestJS, Next.js, MongoDB, and Redis.',
+  description: 'Hệ thống Quản lý Dữ liệu Khách hàng & Tài khoản ASM',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' }
+    ],
+    shortcut: '/icon.svg',
+    apple: '/icon.svg'
+  }
 };
 
 export default function RootLayout({

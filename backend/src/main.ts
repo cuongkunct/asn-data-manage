@@ -25,15 +25,21 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
 
 // Middlewares
-app.use(cors({ origin: [CORS_ORIGIN, 'http://localhost:3000'], credentials: true }));
+const CORS_ORIGINS = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  : true;
+
+app.use(cors({
+  origin: CORS_ORIGINS,
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health Check (Public)
-app.get('/api/health', (req, res) => {
+// Health Check (Public - support /, /health, /api/health for Render & health monitors)
+app.get(['/', '/health', '/api/health'], (req, res) => {
   res.json({
     status: 'OK',
     service: 'ASM Backend Modular Monolith',
@@ -56,11 +62,19 @@ app.use('/api/history', authenticateJWT, historyRouter);
 app.use('/api/users', authenticateJWT, usersRouter);
 app.use('/api/quan-ly-ho', authenticateJWT, quanLyHoRouter);
 
+// Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[Server Error]', err?.message || err);
+  res.status(err?.status || 500).json({
+    message: err?.message || 'Lỗi hệ thống nội bộ.'
+  });
+});
+
 // Create HTTP and WebSocket server
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [CORS_ORIGIN, 'http://localhost:3000'],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });

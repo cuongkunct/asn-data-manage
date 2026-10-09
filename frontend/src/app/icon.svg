@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="innerGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Badge -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGrad)" />
+  <rect x="1.5" y="1.5" width="61" height="61" rx="14.5" stroke="url(#innerGlow)" stroke-width="2" />
+  
+  <!-- Modern Geometric 'A' Monogram -->
+  <path d="M32 13L15 49H24.5L28 40H36L39.5 49H49L32 13Z" fill="#090d1a" />
+  <polygon points="32,23 29,32 35,32" fill="#fbbf24" />
+  
+  <!-- Tech Accent Dot -->
+  <circle cx="32" cy="44.5" r="2.8" fill="#090d1a" />
+</svg>

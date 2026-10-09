@@ -6,7 +6,7 @@ import { KeyRound, User, Lock, ArrowRight, ShieldCheck, CheckCircle2, AlertCircl
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [username, setUsername] = useState('superadmin');
+  const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -120,19 +120,19 @@ export default function LoginPage() {
             <div className="grid grid-cols-3 gap-2 text-[11px]">
               <button
                 type="button"
-                onClick={() => fillCredential('superadmin', 'admin123')}
+                onClick={() => fillCredential('admin', 'admin123')}
                 className="p-2 rounded-lg bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-left transition"
               >
-                <span className="font-bold text-amber-400 block">SuperAdmin</span>
-                <span className="text-[10px] text-slate-500">superadmin</span>
+                <span className="font-bold text-amber-400 block">Admin</span>
+                <span className="text-[10px] text-slate-500">admin</span>
               </button>
               <button
                 type="button"
-                onClick={() => fillCredential('manager_a', 'admin123')}
+                onClick={() => fillCredential('manager', 'admin123')}
                 className="p-2 rounded-lg bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-left transition"
               >
                 <span className="font-bold text-indigo-400 block">Manager</span>
-                <span className="text-[10px] text-slate-500">manager_a</span>
+                <span className="text-[10px] text-slate-500">manager</span>
               </button>
               <button
                 type="button"

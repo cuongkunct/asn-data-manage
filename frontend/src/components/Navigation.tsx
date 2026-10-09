@@ -62,7 +62,7 @@ export function Sidebar() {
       {/* Brand Logo */}
       <div className="p-5 border-b border-sidebar-border flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg shadow-amber-500/20">
-          W
+          A
         </div>
         <div>
           <h1 className="font-extrabold text-base tracking-tight text-white flex items-center gap-1">

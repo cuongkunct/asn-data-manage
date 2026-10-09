@@ -136,7 +136,7 @@ router.post('/', async (req: Request, res: Response) => {
     accountType: accountType || 'REGULAR',
     status: status || 'ACTIVE',
     accountLevel: accountLevel || 'LEVEL_1',
-    managedBy: managedBy || 'superadmin',
+    managedBy: managedBy || 'admin',
     cutRetail: cutRetail || '',
     customerCode: customerCode || 'CUS_001',
     accountName: accountName || `MSSUB_${accId}`,

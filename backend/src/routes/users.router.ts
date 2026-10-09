@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { UserModel } from '../database/db';
 import { IUser } from '../types';
@@ -52,8 +53,6 @@ router.post('/', async (req: Request, res: Response) => {
   const { password: _, ...result } = createdObj;
   return res.status(201).json(result);
 });
-
-import mongoose from 'mongoose';
 
 // PUT /api/users/:id
 router.put('/:id', async (req: Request, res: Response) => {

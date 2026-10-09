@@ -1,13 +1,19 @@
 import mongoose, { Schema } from 'mongoose';
 import dns from 'dns';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 import {
   IUser, ICustomer, IAccount, IQLHAccount, ISystemAccount, ICustomerNote, IAuditHistory, IConfigCategory
 } from '../types';
 
 dotenv.config();
 
-// Use system default DNS resolver
+// Configure reliable public DNS resolvers to prevent MongoDB SRV ECONNREFUSED on Windows
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+  // Ignore fallback
+}
 
 // Mongo Schemas
 const UserSchema = new Schema<IUser>({
@@ -159,7 +165,6 @@ export async function connectDB() {
     // Ensure initial admin user exists if users collection is empty
     const userCount = await UserModel.countDocuments();
     if (userCount === 0) {
-      const bcrypt = require('bcryptjs');
       const hashedPassword = bcrypt.hashSync('admin123', 10);
       await UserModel.create({
         username: 'admin',
