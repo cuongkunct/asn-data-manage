@@ -9,6 +9,7 @@ import {
 import { useI18n } from '../../context/i18nContext';
 import SearchableSelect, { SearchableOption } from '@/components/SearchableSelect';
 import { syncNoteQueries } from '@/utils/syncQueries';
+import { formatCustomerLevel } from '@/utils/customerLevel';
 
 export default function NotesPage() {
   const { t } = useI18n();
@@ -85,7 +86,7 @@ export default function NotesPage() {
       subLabel: c.customerName
         ? `${c.customerName}${c.parentCustomerId ? ` • Cấp trên: ${c.parentCustomerId}` : ''}`
         : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : undefined),
-      badge: c.level || (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
+      badge: c.level ? formatCustomerLevel(c.level) : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
     }));
   }, [customerOptions]);
 
@@ -152,7 +153,7 @@ export default function NotesPage() {
         subLabel: c.customerName
           ? `${c.customerName}${c.parentCustomerId ? ` • Cấp trên: ${c.parentCustomerId}` : ''}`
           : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : undefined),
-        badge: c.level || (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
+        badge: c.level ? formatCustomerLevel(c.level) : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
       });
     });
 
@@ -303,8 +304,8 @@ export default function NotesPage() {
       : (formData.content.trim() || 'XÁC NHẬN');
 
     const payload = {
-      customerCode: formData.customerCode,
-      applicableCustomer: formData.applicableCustomer || `Áp dụng cho ${formData.customerCode}`,
+      customerCode: (formData.customerCode || '').trim().toUpperCase(),
+      applicableCustomer: formData.applicableCustomer ? formData.applicableCustomer.trim().toUpperCase() : `Áp dụng cho ${(formData.customerCode || '').trim().toUpperCase()}`,
       noteType: formData.noteType,
       requirement: formData.requirement,
       specialNote: formData.specialNote,
@@ -472,12 +473,12 @@ export default function NotesPage() {
                   return (
                     <tr key={note.noteId || note._id} className="hover:bg-amber-50/20 dark:hover:bg-amber-500/5 transition">
                       {/* MÃ KH */}
-                      <td className="py-3 px-3 font-mono font-extrabold text-slate-900 dark:text-white text-xs">
+                      <td className="py-3 px-3 font-extrabold text-slate-900 dark:text-white text-xs">
                         {note.customerCode || '—'}
                       </td>
 
                       {/* KHÁCH ÁP DỤNG */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                      <td className="py-3 px-3 font-bold text-slate-700 dark:text-slate-300">
                         {note.applicableCustomer || note.customerCode || '—'}
                       </td>
 
@@ -518,7 +519,7 @@ export default function NotesPage() {
                       </td>
 
                       {/* THỜI GIAN */}
-                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500">
                         <div>Tạo: {note.createdAt ? new Date(note.createdAt).toLocaleDateString('vi-VN') : '—'}</div>
                         <div>Sửa: {note.updatedAt ? new Date(note.updatedAt).toLocaleDateString('vi-VN') : '—'}</div>
                       </td>

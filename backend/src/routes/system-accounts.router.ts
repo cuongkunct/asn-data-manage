@@ -4,6 +4,7 @@ import { SystemAccountModel, AccountModel } from '../database/db';
 import { ISystemAccount, IAccount } from '../types';
 import { HistoryService } from '../services/history.service';
 import { wsManager } from '../websocket/gateway';
+import { normalizeUpper, normalizeUpperOrNull, caseInsensitiveExact, escapeRegex } from '../utils/normalize';
 
 const router = Router();
 
@@ -16,8 +17,8 @@ router.get('/tree', async (req: Request, res: Response) => {
 
   const list: ISystemAccount[] = [...sysList];
   regList.forEach(acc => {
-    const accName = (acc.accountName || acc.accountId).trim();
-    if (!list.some(s => s.systemUsername.toLowerCase() === accName.toLowerCase())) {
+    const accName = normalizeUpper(acc.accountName || acc.accountId);
+    if (!list.some(s => (s.systemUsername || '').trim().toLowerCase() === accName.toLowerCase())) {
       list.push({
         _id: acc._id,
         systemAccountId: acc.accountId,
@@ -71,9 +72,9 @@ router.get('/', async (req: Request, res: Response) => {
   let list: (ISystemAccount & { source?: string })[] = sysAccounts.map(s => ({ ...s, source: 'SYSTEM' }));
 
   regularAccounts.forEach(acc => {
-    const accName = (acc.accountName || acc.accountId).trim();
+    const accName = normalizeUpper(acc.accountName || acc.accountId);
     // Tránh trùng lặp nếu tài khoản đã tồn tại trong SystemAccountModel
-    const alreadyExists = list.some(s => s.systemUsername.toLowerCase() === accName.toLowerCase());
+    const alreadyExists = list.some(s => (s.systemUsername || '').trim().toLowerCase() === accName.toLowerCase());
     if (!alreadyExists) {
       list.push({
         _id: acc._id,
@@ -100,10 +101,10 @@ router.get('/', async (req: Request, res: Response) => {
     list = list.filter(s => s.status === status);
   }
   if (systemId && systemId !== 'ALL') {
-    list = list.filter(s => s.systemId === systemId);
+    list = list.filter(s => (s.systemId || '').toLowerCase() === systemId.toLowerCase());
   }
   if (supplierId && supplierId !== 'ALL') {
-    list = list.filter(s => s.supplierId === supplierId);
+    list = list.filter(s => (s.supplierId || '').toLowerCase() === supplierId.toLowerCase());
   }
   if (customerCode) {
     list = list.filter(s => (s.customerCode || '').toLowerCase().includes(customerCode));
@@ -113,8 +114,8 @@ router.get('/', async (req: Request, res: Response) => {
   }
   if (search) {
     list = list.filter(s => 
-      s.systemUsername.toLowerCase().includes(search) ||
-      s.systemAccountId.toLowerCase().includes(search) ||
+      (s.systemUsername || '').toLowerCase().includes(search) ||
+      (s.systemAccountId || '').toLowerCase().includes(search) ||
       (s.customerCode && s.customerCode.toLowerCase().includes(search)) ||
       (s.parentAccountId && s.parentAccountId.toLowerCase().includes(search))
     );
@@ -138,24 +139,43 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   const { systemAccountId, systemId, supplierId, productId, accountLevel, accountType, status, customerCode, parentCustomerId, parentAccountId, systemUsername, notes } = req.body;
 
-  let sysId = systemAccountId;
+  let sysId = normalizeUpper(systemAccountId);
   if (!sysId) {
     const count = await SystemAccountModel.countDocuments();
     sysId = `SYS_ACC_${String(count + 1).padStart(3, '0')}`;
   }
 
+  const finalUsername = normalizeUpper(systemUsername || req.body.accountName) || `NODE_${sysId}`;
+  const finalCustomerCode = normalizeUpper(customerCode);
+  const finalParentCustomerId = normalizeUpper(parentCustomerId);
+  const finalParentAccountId = normalizeUpperOrNull(parentAccountId);
+  const finalSystemId = normalizeUpper(systemId) || 'SYS_AA';
+  const finalSupplierId = normalizeUpper(supplierId) || 'SUP_GLOBAL';
+  const finalProductId = normalizeUpper(productId) || 'PROD_GOLD';
+
+  // Case-insensitive duplicate check
+  const existingSys = await SystemAccountModel.findOne({
+    $or: [
+      { systemUsername: caseInsensitiveExact(finalUsername) },
+      { systemAccountId: caseInsensitiveExact(sysId) }
+    ]
+  }).lean();
+  if (existingSys) {
+    return res.status(400).json({ message: `Tên tài khoản hệ thống "${finalUsername}" đã tồn tại.` });
+  }
+
   const newSysAcc: ISystemAccount = {
     systemAccountId: sysId,
-    systemId: systemId || 'SYS_AA',
-    supplierId: supplierId || 'SUP_GLOBAL',
-    productId: productId || 'PROD_GOLD',
+    systemId: finalSystemId,
+    supplierId: finalSupplierId,
+    productId: finalProductId,
     accountLevel: accountLevel || 'LEVEL_1',
     accountType: accountType || 'SYSTEM',
     status: status || 'ACTIVE',
-    customerCode: customerCode || '',
-    parentCustomerId: parentCustomerId || '',
-    parentAccountId: parentAccountId || null,
-    systemUsername: systemUsername || `NODE_${sysId}`,
+    customerCode: finalCustomerCode,
+    parentCustomerId: finalParentCustomerId,
+    parentAccountId: finalParentAccountId,
+    systemUsername: finalUsername,
     notes: notes || '',
     createdAt: new Date(),
     updatedAt: new Date()
@@ -183,13 +203,33 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const idOrCode = req.params.id;
   const isObjId = mongoose.Types.ObjectId.isValid(idOrCode);
-  const filter = isObjId ? { $or: [{ _id: idOrCode }, { systemAccountId: idOrCode }] } : { systemAccountId: idOrCode };
+  const filter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { systemAccountId: caseInsensitiveExact(idOrCode) }, { systemUsername: caseInsensitiveExact(idOrCode) }] } 
+    : { $or: [{ systemAccountId: caseInsensitiveExact(idOrCode) }, { systemUsername: caseInsensitiveExact(idOrCode) }] };
   let existingAcc = await SystemAccountModel.findOne(filter);
 
   if (existingAcc) {
+    const targetUsername = req.body.systemUsername !== undefined ? normalizeUpper(req.body.systemUsername) : existingAcc.systemUsername;
+    if (targetUsername && targetUsername.toLowerCase() !== existingAcc.systemUsername.toLowerCase()) {
+      const dup = await SystemAccountModel.findOne({
+        _id: { $ne: existingAcc._id },
+        systemUsername: caseInsensitiveExact(targetUsername)
+      }).lean();
+      if (dup) {
+        return res.status(400).json({ message: `Tên tài khoản hệ thống "${targetUsername}" đã tồn tại.` });
+      }
+    }
+
     const updated: ISystemAccount = {
       ...existingAcc.toObject(),
       ...req.body,
+      ...(req.body.systemUsername !== undefined && { systemUsername: targetUsername }),
+      ...(req.body.customerCode !== undefined && { customerCode: normalizeUpper(req.body.customerCode) }),
+      ...(req.body.parentCustomerId !== undefined && { parentCustomerId: normalizeUpper(req.body.parentCustomerId) }),
+      ...(req.body.parentAccountId !== undefined && { parentAccountId: normalizeUpperOrNull(req.body.parentAccountId) }),
+      ...(req.body.systemId !== undefined && { systemId: normalizeUpper(req.body.systemId) }),
+      ...(req.body.supplierId !== undefined && { supplierId: normalizeUpper(req.body.supplierId) }),
+      ...(req.body.productId !== undefined && { productId: normalizeUpper(req.body.productId) }),
       updatedAt: new Date()
     };
 
@@ -211,20 +251,33 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 
   // Nếu là tài khoản từ AccountModel
-  const accFilter = isObjId ? { $or: [{ _id: idOrCode }, { accountId: idOrCode }] } : { accountId: idOrCode };
+  const accFilter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { accountId: caseInsensitiveExact(idOrCode) }, { accountName: caseInsensitiveExact(idOrCode) }] } 
+    : { $or: [{ accountId: caseInsensitiveExact(idOrCode) }, { accountName: caseInsensitiveExact(idOrCode) }] };
   const existingRegular = await AccountModel.findOne(accFilter);
   if (existingRegular) {
+    const targetRegularName = req.body.systemUsername ? normalizeUpper(req.body.systemUsername) : existingRegular.accountName;
+    if (targetRegularName && targetRegularName.toLowerCase() !== existingRegular.accountName.toLowerCase()) {
+      const dup = await AccountModel.findOne({
+        _id: { $ne: existingRegular._id },
+        accountName: caseInsensitiveExact(targetRegularName)
+      }).lean();
+      if (dup) {
+        return res.status(400).json({ message: `Tên tài khoản "${targetRegularName}" đã tồn tại.` });
+      }
+    }
+
     const updatedRegular = {
       ...existingRegular.toObject(),
-      accountName: req.body.systemUsername || existingRegular.accountName,
-      systemId: req.body.systemId || existingRegular.systemId,
-      supplierId: req.body.supplierId || existingRegular.supplierId,
-      productId: req.body.productId || existingRegular.productId,
+      accountName: targetRegularName,
+      systemId: req.body.systemId ? normalizeUpper(req.body.systemId) : existingRegular.systemId,
+      supplierId: req.body.supplierId ? normalizeUpper(req.body.supplierId) : existingRegular.supplierId,
+      productId: req.body.productId ? normalizeUpper(req.body.productId) : existingRegular.productId,
       accountLevel: req.body.accountLevel || existingRegular.accountLevel,
       accountType: req.body.accountType || existingRegular.accountType,
       status: req.body.status || existingRegular.status,
-      customerCode: req.body.customerCode || existingRegular.customerCode,
-      parentAccountId: req.body.parentAccountId,
+      customerCode: req.body.customerCode !== undefined ? normalizeUpper(req.body.customerCode) : existingRegular.customerCode,
+      parentAccountId: req.body.parentAccountId !== undefined ? normalizeUpperOrNull(req.body.parentAccountId) : existingRegular.parentAccountId,
       notes: req.body.notes !== undefined ? req.body.notes : existingRegular.notes,
       updatedAt: new Date()
     };
@@ -244,7 +297,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   const idOrCode = req.params.id;
   const isObjId = mongoose.Types.ObjectId.isValid(idOrCode);
-  const filter = isObjId ? { $or: [{ _id: idOrCode }, { systemAccountId: idOrCode }] } : { systemAccountId: idOrCode };
+  const filter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { systemAccountId: caseInsensitiveExact(idOrCode) }, { systemUsername: caseInsensitiveExact(idOrCode) }] } 
+    : { $or: [{ systemAccountId: caseInsensitiveExact(idOrCode) }, { systemUsername: caseInsensitiveExact(idOrCode) }] };
   const existingAcc = await SystemAccountModel.findOne(filter);
 
   if (existingAcc) {
@@ -264,7 +319,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
     return res.json({ message: 'Xóa hệ thống tài khoản thành công.' });
   }
 
-  const accFilter = isObjId ? { $or: [{ _id: idOrCode }, { accountId: idOrCode }] } : { accountId: idOrCode };
+  const accFilter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { accountId: caseInsensitiveExact(idOrCode) }, { accountName: caseInsensitiveExact(idOrCode) }] } 
+    : { $or: [{ accountId: caseInsensitiveExact(idOrCode) }, { accountName: caseInsensitiveExact(idOrCode) }] };
   const existingRegular = await AccountModel.findOne(accFilter);
   if (existingRegular) {
     await AccountModel.deleteOne({ _id: existingRegular._id });
@@ -276,3 +333,4 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 export default router;
+

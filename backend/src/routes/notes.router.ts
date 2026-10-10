@@ -4,6 +4,7 @@ import { CustomerNoteModel } from '../database/db';
 import { ICustomerNote } from '../types';
 import { HistoryService } from '../services/history.service';
 import { wsManager } from '../websocket/gateway';
+import { normalizeUpper, normalizeUpperOrNull, caseInsensitiveExact, escapeRegex } from '../utils/normalize';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get('/', async (req: Request, res: Response) => {
   const search = (req.query.search as string || '').trim().toLowerCase();
   const customerCode = (req.query.customer_code as string || req.query.customerCode as string || '').trim().toLowerCase();
   const applicableCustomer = (req.query.applicable_customer as string || req.query.applicableCustomer as string || '').trim().toLowerCase();
-  const accountId = req.query.account_id as string || req.query.accountId as string;
+  const accountId = (req.query.account_id as string || req.query.accountId as string || '').trim().toLowerCase();
   const noteType = req.query.note_type as string || req.query.noteType as string;
 
   let notes = (await CustomerNoteModel.find().lean().exec()) as ICustomerNote[];
@@ -26,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
     notes = notes.filter(n => (n.applicableCustomer || '').toLowerCase().includes(applicableCustomer));
   }
   if (accountId) {
-    notes = notes.filter(n => n.accountId && n.accountId.toLowerCase().includes(accountId.toLowerCase()));
+    notes = notes.filter(n => (n.accountId || '').toLowerCase().includes(accountId));
   }
   if (noteType && noteType !== 'ALL') {
     notes = notes.filter(n => n.noteType === noteType);
@@ -59,18 +60,21 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   const { customerCode, applicableCustomer, accountId, noteType, requirement, specialNote, content, createdBy } = req.body;
 
-  if (!customerCode || !content) {
-    return res.status(400).json({ message: 'customerCode and content are required.' });
+  const finalCustomerCode = normalizeUpper(customerCode);
+  if (!finalCustomerCode || !content) {
+    return res.status(400).json({ message: 'customerCode và content là bắt buộc.' });
   }
 
   const count = await CustomerNoteModel.countDocuments();
   const noteId = `NOTE_${String(count + 1).padStart(3, '0')}`;
+  const finalApplicable = applicableCustomer ? normalizeUpper(applicableCustomer) : `Áp dụng cho ${finalCustomerCode}`;
+  const finalAccountId = normalizeUpper(accountId);
 
   const newNote: ICustomerNote = {
     noteId,
-    customerCode,
-    applicableCustomer: applicableCustomer || `Áp dụng cho ${customerCode}`,
-    accountId: accountId || '',
+    customerCode: finalCustomerCode,
+    applicableCustomer: finalApplicable,
+    accountId: finalAccountId,
     noteType: noteType || 'TEXT',
     requirement: requirement || '',
     specialNote: specialNote || '',
@@ -94,7 +98,7 @@ router.post('/', async (req: Request, res: Response) => {
   });
 
   wsManager.broadcast('note.created', createdObj);
-  wsManager.broadcast('note.created', createdObj, `customer:${customerCode}`);
+  wsManager.broadcast('note.created', createdObj, `customer:${finalCustomerCode}`);
 
   return res.status(201).json(createdObj);
 });
@@ -103,7 +107,9 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const idOrCode = req.params.id;
   const isObjId = mongoose.Types.ObjectId.isValid(idOrCode);
-  const filter = isObjId ? { $or: [{ _id: idOrCode }, { noteId: idOrCode }] } : { noteId: idOrCode };
+  const filter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { noteId: caseInsensitiveExact(idOrCode) }] } 
+    : { noteId: caseInsensitiveExact(idOrCode) };
   const existingNote = await CustomerNoteModel.findOne(filter).lean();
 
   if (!existingNote) {
@@ -113,6 +119,9 @@ router.put('/:id', async (req: Request, res: Response) => {
   const updated: ICustomerNote = {
     ...existingNote,
     ...req.body,
+    ...(req.body.customerCode !== undefined && { customerCode: normalizeUpper(req.body.customerCode) }),
+    ...(req.body.applicableCustomer !== undefined && { applicableCustomer: normalizeUpper(req.body.applicableCustomer) }),
+    ...(req.body.accountId !== undefined && { accountId: normalizeUpper(req.body.accountId) }),
     updatedAt: new Date()
   };
 
@@ -138,7 +147,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   const idOrCode = req.params.id;
   const isObjId = mongoose.Types.ObjectId.isValid(idOrCode);
-  const filter = isObjId ? { $or: [{ _id: idOrCode }, { noteId: idOrCode }] } : { noteId: idOrCode };
+  const filter = isObjId 
+    ? { $or: [{ _id: idOrCode }, { noteId: caseInsensitiveExact(idOrCode) }] } 
+    : { noteId: caseInsensitiveExact(idOrCode) };
   const existingNote = await CustomerNoteModel.findOne(filter).lean();
 
   if (!existingNote) {
@@ -163,3 +174,4 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 export default router;
+

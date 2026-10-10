@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Search, Users, KeyRound, Server, FileText, 
@@ -10,13 +11,25 @@ import {
 } from 'lucide-react';
 import { useI18n } from '../../context/i18nContext';
 import Link from 'next/link';
+import { formatCustomerLevel } from '@/utils/customerLevel';
 
-export default function OverviewPage() {
+function OverviewContent() {
   const { t } = useI18n();
-  const [queryInput, setQueryInput] = useState('CUS_001');
-  const [activeQuery, setActiveQuery] = useState('CUS_001');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const qParam = searchParams.get('q');
+
+  const [queryInput, setQueryInput] = useState(qParam || 'CUS_001');
+  const [activeQuery, setActiveQuery] = useState(qParam || 'CUS_001');
   const [activeTab, setActiveTab] = useState<'all' | 'accounts' | 'systems' | 'notes' | 'history'>('all');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (qParam !== null && qParam !== undefined && qParam.trim() !== '') {
+      setQueryInput(qParam.trim());
+      setActiveQuery(qParam.trim());
+    }
+  }, [qParam]);
 
   const copyToClipboard = (text: string, key: string) => {
     if (!text) return;
@@ -28,7 +41,9 @@ export default function OverviewPage() {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['overview', activeQuery],
     queryFn: async () => {
-      const token = localStorage.getItem('asm_token');
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('asm_jwt_token') || localStorage.getItem('asm_token'))
+        : null;
       const res = await fetch(`/api/overview/lookup?q=${encodeURIComponent(activeQuery)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -41,8 +56,10 @@ export default function OverviewPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (queryInput.trim()) {
-      setActiveQuery(queryInput.trim());
+    const trimmed = queryInput.trim();
+    if (trimmed) {
+      setActiveQuery(trimmed);
+      router.replace(`/overview?q=${encodeURIComponent(trimmed)}`);
     }
   };
 
@@ -100,7 +117,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Mã Khách Hàng</span>
-            <div className="text-sm font-black font-mono text-slate-900 dark:text-white mt-0.5 truncate max-w-[130px]">
+            <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5 truncate max-w-[130px]">
               {customer?.customerCode || activeQuery}
             </div>
           </div>
@@ -112,7 +129,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Tài Khoản DSTK</span>
-            <div className="text-base font-black font-mono text-slate-900 dark:text-white mt-0.5">
+            <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">
               {accounts.length} <span className="text-[11px] font-normal text-slate-400">tài khoản</span>
             </div>
           </div>
@@ -124,7 +141,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Hệ Thống HTTK</span>
-            <div className="text-base font-black font-mono text-slate-900 dark:text-white mt-0.5">
+            <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">
               {systemAccounts.length} <span className="text-[11px] font-normal text-slate-400">liên kết</span>
             </div>
           </div>
@@ -136,7 +153,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Ghi Chú & Thao Tác</span>
-            <div className="text-base font-black font-mono text-slate-900 dark:text-white mt-0.5">
+            <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">
               {notes.length} <span className="text-[11px] font-normal text-slate-400">ghi chú • {history.length} log</span>
             </div>
           </div>
@@ -158,7 +175,7 @@ export default function OverviewPage() {
             {t('overview.notFound')}
           </h3>
           <p className="text-xs max-w-md mx-auto">
-            Không tìm thấy bản ghi phù hợp với từ khóa <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-brand-500 font-bold">{activeQuery}</code>.
+            Không tìm thấy bản ghi phù hợp với từ khóa <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-brand-500 font-bold">{activeQuery}</code>.
           </p>
         </div>
       ) : (
@@ -174,7 +191,7 @@ export default function OverviewPage() {
                   </div>
                   <div>
                     <div className="text-[10px] text-slate-400 uppercase font-bold">Hồ sơ khách hàng</div>
-                    <div className="text-sm font-mono font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                       <span>{customer?.customerCode || activeQuery}</span>
                       <button 
                         onClick={() => copyToClipboard(customer?.customerCode || activeQuery, 'cus_code')}
@@ -199,8 +216,8 @@ export default function OverviewPage() {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80">
                   <span className="text-slate-400 text-[10px] block">Cấp KH (Level)</span>
-                  <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                    {customer?.level || '1-0'}
+                  <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                    {formatCustomerLevel(customer?.level)}
                   </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80">
@@ -211,8 +228,8 @@ export default function OverviewPage() {
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80">
                   <span className="text-slate-400 text-[10px] block">Cấp trên (Parent)</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
-                    {customer?.parentCustomerId || 'CTY'}
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    {customer?.parentCustomerId || '—'}
                   </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80">
@@ -264,11 +281,11 @@ export default function OverviewPage() {
                     <div key={idx} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80 text-xs">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="font-extrabold text-slate-900 dark:text-white">{h.action}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-slate-400">
                           {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(h.createdAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between font-mono">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
                         <span>{h.module}: {h.objectId}</span>
                         <span className="text-slate-400">bởi {h.userName || 'System'}</span>
                       </div>
@@ -353,7 +370,7 @@ export default function OverviewPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 uppercase font-mono">
+                        <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 uppercase">
                           <th className="py-2 px-2.5">Mã TK</th>
                           <th className="py-2 px-2.5">Tên TK</th>
                           <th className="py-2 px-2.5">Hệ Thống</th>
@@ -365,13 +382,13 @@ export default function OverviewPage() {
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {accounts.map((acc: any) => (
                           <tr key={acc.accountId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                            <td className="py-2.5 px-2.5 font-mono font-bold text-brand-600 dark:text-brand-400">
+                            <td className="py-2.5 px-2.5 font-bold text-brand-600 dark:text-brand-400">
                               {acc.accountId}
                             </td>
                             <td className="py-2.5 px-2.5 font-medium text-slate-900 dark:text-white">
                               {acc.accountName}
                             </td>
-                            <td className="py-2.5 px-2.5 text-slate-500 font-mono text-[11px]">
+                            <td className="py-2.5 px-2.5 text-slate-500 text-[11px]">
                               {acc.systemId || '-'}{acc.supplierId ? ` / ${acc.supplierId}` : ''}
                             </td>
                             <td className="py-2.5 px-2.5">
@@ -440,11 +457,11 @@ export default function OverviewPage() {
                         <div className="space-y-0.5">
                           <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                             <span>{sys.systemUsername}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-mono">
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
                               Cấp {sys.accountLevel || '1-0'}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-400 font-mono">
+                          <div className="text-[10px] text-slate-400">
                             ID: {sys.systemAccountId} • KH: {sys.customerCode}
                           </div>
                         </div>
@@ -489,7 +506,7 @@ export default function OverviewPage() {
                           <span className="font-extrabold text-amber-600 dark:text-amber-400 text-[11px] px-2 py-0.5 rounded bg-amber-500/10">
                             {n.noteType || 'Ghi chú chung'}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-slate-400">
                             Mã: {n.noteId}
                           </span>
                         </div>
@@ -506,5 +523,18 @@ export default function OverviewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OverviewPage() {
+  return (
+    <Suspense fallback={
+      <div className="py-20 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-xs font-semibold">Đang tải dữ liệu tổng quan...</p>
+      </div>
+    }>
+      <OverviewContent />
+    </Suspense>
   );
 }

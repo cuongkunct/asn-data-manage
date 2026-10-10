@@ -81,8 +81,8 @@ export function PasswordGeneratorModal({ isOpen, onClose, onSelectPassword }: Pa
 
         {/* Display Field */}
         <div className="mb-5 relative">
-          <div className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 pr-24 font-mono text-sm tracking-wider text-slate-900 dark:text-brand-300 font-semibold min-h-[46px] flex items-center break-all select-all">
-            {generatedPassword || <span className="text-slate-400 font-sans text-xs">Nhấn "Tạo mật khẩu" để bắt đầu...</span>}
+          <div className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 pr-24 text-sm tracking-wider text-slate-900 dark:text-brand-300 font-semibold min-h-[46px] flex items-center break-all select-all">
+            {generatedPassword || <span className="text-slate-400 font-normal text-xs">Nhấn "Tạo mật khẩu" để bắt đầu...</span>}
           </div>
           <div className="absolute right-2 top-2 flex items-center gap-1">
             <button
@@ -106,7 +106,7 @@ export function PasswordGeneratorModal({ isOpen, onClose, onSelectPassword }: Pa
           <div>
             <div className="flex justify-between items-center mb-1 text-slate-700 dark:text-slate-300 font-medium">
               <span>Độ dài mật khẩu (Length):</span>
-              <span className="font-mono font-bold text-brand-600 dark:text-brand-400">{length}</span>
+              <span className="font-bold text-brand-600 dark:text-brand-400">{length}</span>
             </div>
             <input 
               type="range" 

@@ -211,7 +211,7 @@ export default function UsersPage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               Quản Lý Người Dùng & Phân Quyền
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-mono font-semibold border border-amber-500/20">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-semibold border border-amber-500/20">
                 RBAC System
               </span>
             </h1>
@@ -357,7 +357,7 @@ export default function UsersPage() {
                   const roleStyle = ROLE_CONFIG[u.role] || ROLE_CONFIG.OPERATOR;
                   return (
                     <tr key={u._id || u.username} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-xs">
                             {u.username.charAt(0).toUpperCase()}
@@ -393,7 +393,7 @@ export default function UsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                      <td className="py-3.5 px-4 text-slate-400 text-[11px]">
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '-'}
                       </td>
                       <td className="py-3.5 px-4 text-right">
@@ -479,7 +479,7 @@ export default function UsersPage() {
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="ví dụ: admin01"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50"
                   />
                 </div>
 
@@ -493,7 +493,7 @@ export default function UsersPage() {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder={editingUser ? '••••••••' : 'Nhập mật khẩu'}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
               </div>

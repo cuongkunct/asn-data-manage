@@ -17,10 +17,10 @@ dotenv.config();
 
 try {
   dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (_) {}
+} catch (_) { }
 
 async function runSeed() {
-  const uri = process.env.MONGODB_URI || 'mongodb+srv://thangtrandz04_db_user:OKztUrDX5tJXHVdr@cluster0.ul11lo6.mongodb.net/asm_data?retryWrites=true&w=majority&appName=Cluster0';
+  const uri = process.env.MONGODB_URI || 'mongodb+srv://cuongkunct_db_user:Cuong240418@asm-data-db.2b1zrve.mongodb.net/?appName=asm-data-db';
 
   console.log(`[Seed] ⏳ Connecting to MongoDB Atlas: ${uri.split('@')[1] || uri}...`);
   mongoose.set('strictQuery', false);

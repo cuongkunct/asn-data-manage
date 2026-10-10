@@ -29,9 +29,10 @@ const UserSchema = new Schema<IUser>({
 
 const CustomerSchema = new Schema<ICustomer>({
   customerCode: { type: String, required: true, unique: true, index: true },
+  parentId: { type: Schema.Types.ObjectId, ref: 'Customer', default: null, index: true },
   parentCustomerId: { type: String, default: null, index: true },
   status: { type: String, default: 'ACTIVE', index: true },
-  level: { type: String, default: 'A' },
+  level: { type: String, default: '1' },
   ottApps: [{ type: String }],
   manageOnBehalf: { type: Boolean, default: false },
   notes: { type: String, default: '' }
@@ -46,9 +47,11 @@ const AccountSchema = new Schema<IAccount>({
   status: { type: String, default: 'ACTIVE', index: true },
   accountLevel: { type: String, default: 'AGENT' },
   managedBy: { type: String, default: 'User A', index: true },
+  banker: { type: String, default: '', index: true },
   cutRetail: { type: String, default: '' },
   customerCode: { type: String, required: true, index: true },
   accountName: { type: String, required: true, index: true },
+  loginName: { type: String, default: '', index: true },
   parentAccountId: { type: String, default: null, index: true },
   password: { type: String, default: '' },
   code: { type: String, default: '' },
@@ -71,6 +74,7 @@ const SystemAccountSchema = new Schema<ISystemAccount>({
   accountType: { type: String, default: 'SYSTEM' },
   status: { type: String, default: 'ACTIVE', index: true },
   customerCode: { type: String, default: '' },
+  banker: { type: String, default: '', index: true },
   parentCustomerId: { type: String, default: '' },
   parentAccountId: { type: String, default: null, index: true },
   systemUsername: { type: String, required: true, index: true },
@@ -121,6 +125,7 @@ const QLHAccountSchema = new Schema<IQLHAccount>({
   status: { type: String, default: 'ACTIVE', index: true },
   accountLevel: { type: String, default: 'Agent' },
   managedBy: { type: String, default: 'Công Ty', index: true },
+  banker: { type: String, default: '', index: true },
   cutRetail: { type: String, default: '' },
   customerCode: { type: String, default: 'CUS_001', index: true },
   accountName: { type: String, required: true, index: true },
@@ -160,7 +165,29 @@ export async function connectDB() {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 8000 });
     isMongoConnected = true;
     const safeHost = uri.split('@')[1] ? uri.split('@')[1].split('/')[0] : 'localhost';
-    console.log(`[Database] 🚀 Successfully connected directly to MongoDB Cloud Atlas (${safeHost})`);
+    const currentDbName = mongoose.connection.db?.databaseName || mongoose.connection.name;
+    console.log(`[Database] 🚀 Successfully connected to MongoDB Cloud Atlas (${safeHost})`);
+    console.log(`[Database] 📂 Connected to Database: "${currentDbName}"`);
+
+    // List all databases on Atlas cluster to diagnose database name mismatch
+    try {
+      if (mongoose.connection.db) {
+        const adminDb = mongoose.connection.db.admin();
+        const dbsList = await adminDb.listDatabases();
+        console.log(`[Database] 📋 Available Databases on Cluster:`, dbsList.databases.map((d: any) => `${d.name} (${d.sizeOnDisk} bytes)`));
+
+        const collections = await mongoose.connection.db.listCollections().toArray();
+        console.log(`[Database] 📦 Collections in "${currentDbName}":`, collections.map((c: any) => c.name));
+
+        const userCount = await UserModel.countDocuments();
+        const accCount = await AccountModel.countDocuments();
+        const custCount = await CustomerModel.countDocuments();
+        const qlhCount = await QLHAccountModel.countDocuments();
+        console.log(`[Database] 📊 Document Counts in "${currentDbName}": Users=${userCount}, Accounts=${accCount}, Customers=${custCount}, QLH=${qlhCount}`);
+      }
+    } catch (diagErr: any) {
+      console.log(`[Database] Diagnostic check note: ${diagErr.message}`);
+    }
 
     // Ensure initial admin user exists if users collection is empty
     const userCount = await UserModel.countDocuments();

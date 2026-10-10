@@ -5,6 +5,7 @@ import { IQLHAccount } from '../types';
 import { HistoryService } from '../services/history.service';
 import { wsManager } from '../websocket/gateway';
 import { generatePassword, PasswordConfig } from '../utils/security';
+import { normalizeUpper, normalizeUpperOrNull, normalizeTrim, caseInsensitiveExact, escapeRegex } from '../utils/normalize';
 
 const router = Router();
 
@@ -33,22 +34,23 @@ router.get('/', async (req: Request, res: Response) => {
 
   // System filter
   if (systemId && systemId !== 'ALL') {
-    accounts = accounts.filter(a => a.systemId === systemId);
+    accounts = accounts.filter(a => (a.systemId || '').toLowerCase() === systemId.toLowerCase());
   }
 
   // Customer code search
   if (search) {
     accounts = accounts.filter(a =>
-      a.customerCode.toLowerCase().includes(search) ||
-      a.accountId.toLowerCase().includes(search)
+      (a.customerCode || '').toLowerCase().includes(search) ||
+      (a.accountId || '').toLowerCase().includes(search)
     );
   }
 
   // Account name/login search
   if (searchAccount) {
     accounts = accounts.filter(a =>
-      a.accountName.toLowerCase().includes(searchAccount) ||
-      (a.code && a.code.toLowerCase().includes(searchAccount))
+      (a.accountName || '').toLowerCase().includes(searchAccount) ||
+      (a.code && a.code.toLowerCase().includes(searchAccount)) ||
+      (a.loginName && a.loginName.toLowerCase().includes(searchAccount))
     );
   }
 
@@ -63,7 +65,10 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/quan-ly-ho/:id
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { accountId: id }] } : { accountId: id };
+  const isObjId = mongoose.Types.ObjectId.isValid(id);
+  const query = isObjId 
+    ? { $or: [{ _id: id }, { accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] } 
+    : { $or: [{ accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] };
   const account = await QLHAccountModel.findOne(query).lean();
 
   if (!account) return res.status(404).json({ message: 'Tài khoản không tồn tại.' });
@@ -78,26 +83,51 @@ router.post('/', async (req: Request, res: Response) => {
     loginName, subAccounts
   } = req.body;
 
-  const count = await QLHAccountModel.countDocuments();
-  const accId = req.body.accountId || `ACC_${Date.now().toString().slice(-6)}`;
+  const accId = normalizeUpper(req.body.accountId) || `ACC_${Date.now().toString().slice(-6)}`;
+  const finalAccountName = normalizeUpper(accountName) || accId;
+  const finalCustomerCode = normalizeUpper(customerCode);
+  const finalSystemId = normalizeUpper(systemId);
+  const finalSupplierId = normalizeUpper(supplierId);
+  const finalProductId = normalizeUpper(productId);
+  const finalCode = normalizeUpper(code || loginName || '');
+  const finalLoginName = normalizeTrim(loginName || code || '');
+
+  // Case-insensitive duplicate check
+  const existingAcc = await QLHAccountModel.findOne({
+    $or: [
+      { accountName: caseInsensitiveExact(finalAccountName) },
+      { accountId: caseInsensitiveExact(accId) }
+    ]
+  }).lean();
+  if (existingAcc) {
+    return res.status(400).json({ message: `Tên tài khoản hoặc mã "${finalAccountName}" đã tồn tại.` });
+  }
+
+  const finalSubs = Array.isArray(subAccounts)
+    ? subAccounts.map((s: any) => ({
+        ...s,
+        username: normalizeUpper(s.username),
+        password: s.password || ''
+      }))
+    : [];
 
   const newAcc: IQLHAccount = {
     accountId: accId,
-    systemId: systemId || '',
-    supplierId: supplierId || '',
-    productId: productId || '',
+    systemId: finalSystemId,
+    supplierId: finalSupplierId,
+    productId: finalProductId,
     accountType: accountType || 'QLH',
     status: status || 'ACTIVE',
     accountLevel: accountLevel || 'Agent',
     managedBy: managedBy || 'Công Ty',
     cutRetail: cutRetail || 'All',
-    customerCode: customerCode || '',
-    accountName: accountName || accId,
+    customerCode: finalCustomerCode,
+    accountName: finalAccountName,
     password: password || '',
-    code: code || loginName || '',
-    loginName: loginName || code || '',
+    code: finalCode,
+    loginName: finalLoginName,
     notes: notes || '',
-    subAccounts: subAccounts || [],
+    subAccounts: finalSubs,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -122,14 +152,46 @@ router.post('/', async (req: Request, res: Response) => {
 // PUT /api/quan-ly-ho/:id
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { accountId: id }] } : { accountId: id };
+  const isObjId = mongoose.Types.ObjectId.isValid(id);
+  const query = isObjId 
+    ? { $or: [{ _id: id }, { accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] } 
+    : { $or: [{ accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] };
   const existingAcc = await QLHAccountModel.findOne(query).lean();
 
   if (!existingAcc) {
     return res.status(404).json({ message: 'Tài khoản không tồn tại.' });
   }
 
-  const updated: IQLHAccount = { ...existingAcc, ...req.body, updatedAt: new Date() };
+  // Check duplicate if accountName changed
+  const targetAccountName = req.body.accountName !== undefined ? normalizeUpper(req.body.accountName) : existingAcc.accountName;
+  if (targetAccountName && targetAccountName.toLowerCase() !== (existingAcc.accountName || '').toLowerCase()) {
+    const dup = await QLHAccountModel.findOne({
+      _id: { $ne: existingAcc._id },
+      accountName: caseInsensitiveExact(targetAccountName)
+    }).lean();
+    if (dup) {
+      return res.status(400).json({ message: `Tên tài khoản "${targetAccountName}" đã tồn tại.` });
+    }
+  }
+
+  const updated: IQLHAccount = { 
+    ...existingAcc, 
+    ...req.body, 
+    ...(req.body.accountName !== undefined && { accountName: targetAccountName }),
+    ...(req.body.customerCode !== undefined && { customerCode: normalizeUpper(req.body.customerCode) }),
+    ...(req.body.systemId !== undefined && { systemId: normalizeUpper(req.body.systemId) }),
+    ...(req.body.supplierId !== undefined && { supplierId: normalizeUpper(req.body.supplierId) }),
+    ...(req.body.productId !== undefined && { productId: normalizeUpper(req.body.productId) }),
+    ...(req.body.code !== undefined && { code: normalizeUpper(req.body.code) }),
+    ...(req.body.loginName !== undefined && { loginName: normalizeTrim(req.body.loginName) }),
+    ...(req.body.subAccounts && {
+      subAccounts: req.body.subAccounts.map((s: any) => ({
+        ...s,
+        username: normalizeUpper(s.username)
+      }))
+    }),
+    updatedAt: new Date() 
+  };
   await QLHAccountModel.updateOne({ _id: existingAcc._id }, updated);
 
   await HistoryService.logAction({
@@ -150,7 +212,10 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/quan-ly-ho/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { accountId: id }] } : { accountId: id };
+  const isObjId = mongoose.Types.ObjectId.isValid(id);
+  const query = isObjId 
+    ? { $or: [{ _id: id }, { accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] } 
+    : { $or: [{ accountId: caseInsensitiveExact(id) }, { accountName: caseInsensitiveExact(id) }] };
   const existingAcc = await QLHAccountModel.findOne(query).lean();
 
   if (!existingAcc) {

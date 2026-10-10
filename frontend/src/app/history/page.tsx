@@ -124,7 +124,7 @@ export default function HistoryPage() {
                     {h.userName}
                   </td>
                   <td className="py-3 px-4">
-                    <span className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] ${
+                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
                       h.action === 'CREATE' ? 'bg-emerald-500/10 text-emerald-500' :
                       h.action === 'UPDATE' ? 'bg-blue-500/10 text-blue-500' :
                       h.action === 'DELETE' ? 'bg-rose-500/10 text-rose-500' :
@@ -133,16 +133,16 @@ export default function HistoryPage() {
                       {h.action}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-mono font-semibold text-slate-600 dark:text-slate-300">
+                  <td className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">
                     {h.module}
                   </td>
-                  <td className="py-3 px-4 font-mono text-brand-600 dark:text-brand-400">
+                  <td className="py-3 px-4 font-semibold text-brand-600 dark:text-brand-400">
                     {h.objectId}
                   </td>
-                  <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
+                  <td className="py-3 px-4 text-slate-400 text-[11px]">
                     {h.ipAddress || '127.0.0.1'}
                   </td>
-                  <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                  <td className="py-3 px-4 text-slate-500 text-[11px]">
                     {new Date(h.createdAt).toLocaleString()}
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -171,11 +171,11 @@ export default function HistoryPage() {
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
               Chi Tiết Thay Đổi: {selectedHistory.action} ({selectedHistory.objectId})
             </h3>
-            <p className="text-xs text-slate-500 font-mono mb-4">
+            <p className="text-xs text-slate-500 mb-4">
               User: {selectedHistory.userName} • Time: {new Date(selectedHistory.createdAt).toLocaleString()}
             </p>
 
-            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+            <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <h4 className="font-bold text-rose-500 mb-2">Dữ Liệu Cũ (Old State):</h4>
                 <pre className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 overflow-x-auto text-[11px] min-h-[150px]">

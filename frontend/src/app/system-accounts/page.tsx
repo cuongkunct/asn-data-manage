@@ -10,6 +10,7 @@ import {
 import { useI18n } from '../../context/i18nContext';
 import SearchableSelect, { SearchableOption } from '../../components/SearchableSelect';
 import { syncSystemAccountQueries } from '@/utils/syncQueries';
+import DeleteSystemModal from '../../components/DeleteSystemModal';
 
 interface SystemAccountTreeNode {
   item: any;
@@ -44,6 +45,7 @@ export default function SystemAccountsPage() {
 
   // Modals State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteSystemModalOpen, setIsDeleteSystemModalOpen] = useState(false);
   const [editingAcc, setEditingAcc] = useState<any>(null);
   const [saveMode, setSaveMode] = useState<'normal' | 'copy' | 'new'>('normal');
 
@@ -407,12 +409,13 @@ export default function SystemAccountsPage() {
   };
 
   const handleCustomerCodeChange = (code: string) => {
-    const foundCust = customerOptions.find((c: any) => c.customerCode === code);
+    const cleanCode = (code || '').trim().toUpperCase();
+    const foundCust = customerOptions.find((c: any) => (c.customerCode || '').trim().toUpperCase() === cleanCode);
     const parentCust = foundCust?.parentCustomerId || '';
     setFormData(prev => ({
       ...prev,
-      customerCode: code,
-      parentCustomerId: parentCust
+      customerCode: cleanCode,
+      parentCustomerId: parentCust ? parentCust.trim().toUpperCase() : ''
     }));
   };
 
@@ -473,17 +476,17 @@ export default function SystemAccountsPage() {
     }
 
     const payload = {
-      systemAccountId: formData.systemAccountId,
-      systemId: formData.systemId,
-      supplierId: formData.supplierId,
-      productId: formData.productId,
+      systemAccountId: (formData.systemAccountId || '').trim().toUpperCase(),
+      systemId: (formData.systemId || '').trim().toUpperCase(),
+      supplierId: (formData.supplierId || '').trim().toUpperCase(),
+      productId: (formData.productId || '').trim().toUpperCase(),
       accountLevel: formData.accountLevel,
       accountType: formData.accountType,
       status: formData.status,
-      customerCode: formData.customerCode,
-      parentCustomerId: formData.parentCustomerId,
-      parentAccountId: formData.parentAccountId,
-      systemUsername: formData.systemUsername.trim(),
+      customerCode: (formData.customerCode || '').trim().toUpperCase(),
+      parentCustomerId: (formData.parentCustomerId || '').trim().toUpperCase(),
+      parentAccountId: formData.parentAccountId ? formData.parentAccountId.trim().toUpperCase() : null,
+      systemUsername: (formData.systemUsername || '').trim().toUpperCase(),
       notes: formData.notes,
     };
 
@@ -653,11 +656,12 @@ export default function SystemAccountsPage() {
           )}
 
           <button
-            onClick={() => showToast('Tính năng Xóa HT nâng cao')}
+            onClick={() => setIsDeleteSystemModalOpen(true)}
             className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
+            title="Xóa toàn bộ tài khoản theo hệ thống hoặc nhà cung cấp"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Xóa HT
+            <span>Xóa HT</span>
           </button>
 
           <button
@@ -735,7 +739,7 @@ export default function SystemAccountsPage() {
                       </td>
 
                       {/* MÃ KH */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">
+                      <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
                         {acc.customerCode || '—'}
                       </td>
 
@@ -746,7 +750,7 @@ export default function SystemAccountsPage() {
                           className="flex items-center gap-1.5"
                         >
                           {node.depth > 0 && (
-                            <span className="text-slate-300 dark:text-slate-700 font-mono text-xs select-none">
+                            <span className="text-slate-300 dark:text-slate-700 text-xs select-none">
                               └─
                             </span>
                           )}
@@ -771,7 +775,7 @@ export default function SystemAccountsPage() {
                                   }`}
                                 />
                               </span>
-                              <span className="font-mono font-extrabold text-slate-900 dark:text-white text-xs group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
+                              <span className="font-extrabold text-slate-900 dark:text-white text-xs group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
                                 {acc.systemUsername}
                               </span>
                               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -780,7 +784,7 @@ export default function SystemAccountsPage() {
                             </button>
                           ) : (
                             <div className="flex items-center gap-1.5 pl-4">
-                              <span className="font-mono font-extrabold text-slate-900 dark:text-white text-xs">
+                              <span className="font-extrabold text-slate-900 dark:text-white text-xs">
                                 {acc.systemUsername}
                               </span>
                             </div>
@@ -822,7 +826,7 @@ export default function SystemAccountsPage() {
                       </td>
 
                       {/* THỜI GIAN */}
-                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500">
                         <div>Tạo: {acc.createdAt ? new Date(acc.createdAt).toLocaleDateString('vi-VN') : '—'}</div>
                         <div>Sửa: {acc.updatedAt ? new Date(acc.updatedAt).toLocaleDateString('vi-VN') : '—'}</div>
                       </td>
@@ -1129,7 +1133,7 @@ export default function SystemAccountsPage() {
                         placeholder="VD: KTT884301, AZ0501..."
                         value={formData.systemUsername}
                         onChange={(e) => setFormData({ ...formData, systemUsername: e.target.value })}
-                        className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                       />
                     </div>
 
@@ -1209,6 +1213,17 @@ export default function SystemAccountsPage() {
           </div>
         </div>
       )}
+
+      {/* ── DELETE SYSTEM MODAL ── */}
+      <DeleteSystemModal
+        isOpen={isDeleteSystemModalOpen}
+        onClose={() => setIsDeleteSystemModalOpen(false)}
+        onSuccess={() => {
+          refetch();
+          showToast('Đã xóa hệ thống thành công trên toàn bộ hệ thống!');
+        }}
+        initialSystemName={systemId !== 'ALL' ? systemId : ''}
+      />
     </div>
   );
 }

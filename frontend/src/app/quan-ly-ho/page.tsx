@@ -7,6 +7,7 @@ import {
   Copy, Eye, EyeOff, Sparkles, Shield, RotateCcw, Save, FilePlus, Hash
 } from 'lucide-react';
 import { syncQlhQueries } from '@/utils/syncQueries';
+import DeleteSystemModal from '@/components/DeleteSystemModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface QLHAccount {
@@ -102,6 +103,7 @@ export default function QuanLyHoPage() {
 
   // Modal state
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteSystemModalOpen, setIsDeleteSystemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<QLHAccount | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [showPwd, setShowPwd] = useState(false);
@@ -269,18 +271,18 @@ export default function QuanLyHoPage() {
     e.preventDefault();
     setSaveMode(mode);
     const payload = {
-      systemId: formData.systemId,
-      supplierId: formData.supplierId,
-      productId: formData.productId,
+      systemId: (formData.systemId || '').trim().toUpperCase(),
+      supplierId: (formData.supplierId || '').trim().toUpperCase(),
+      productId: (formData.productId || '').trim().toUpperCase(),
       accountType: formData.accountType,
       accountLevel: formData.accountLevel,
       managedBy: formData.managedBy,
       cutRetail: formData.cutRetail,
-      customerCode: formData.customerCode,
-      accountName: formData.accountName,
-      loginName: formData.loginName,
+      customerCode: (formData.customerCode || '').trim().toUpperCase(),
+      accountName: (formData.accountName || '').trim().toUpperCase(),
+      loginName: (formData.loginName || '').trim(),
       password: formData.password,
-      code: formData.code || formData.loginName,
+      code: (formData.code || formData.loginName || '').trim().toUpperCase(),
       notes: formData.notes,
     };
     saveMutation.mutate(payload);
@@ -347,6 +349,16 @@ export default function QuanLyHoPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsDeleteSystemModalOpen(true)}
+            className="py-2 px-3.5 rounded-xl bg-rose-500/90 hover:bg-rose-600 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+            title="Xóa toàn bộ tài khoản theo hệ thống hoặc nhà cung cấp"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Xóa HT</span>
+          </button>
+
           <button
             onClick={handleOpenCreate}
             className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/25 transition flex items-center gap-2"
@@ -479,7 +491,7 @@ export default function QuanLyHoPage() {
 
                   {/* MÃ KH */}
                   <td className="py-2.5 px-3">
-                    <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    <span className="font-bold text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                       {item.customerCode}
                     </span>
                   </td>
@@ -487,13 +499,13 @@ export default function QuanLyHoPage() {
                   {/* TÀI KHOẢN / LOGIN */}
                   <td className="py-2.5 px-3 max-w-[140px]">
                     <div className="font-bold text-slate-900 dark:text-white text-[11px] truncate">{item.accountName}</div>
-                    <div className="text-[10px] text-slate-400 font-mono truncate">{item.loginName || item.code || '—'}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{item.loginName || item.code || '—'}</div>
                   </td>
 
                   {/* PASS / CODE */}
                   <td className="py-2.5 px-3">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                         {item.password 
                           ? (visiblePasswords[item.accountId || item._id!] ? item.password : '••••••••••') 
                           : '—'}
@@ -522,7 +534,7 @@ export default function QuanLyHoPage() {
                       )}
                     </div>
                     {item.code && (
-                      <div className="text-[10px] font-mono text-slate-400 mt-0.5 truncate max-w-[110px]" title={`Mã Code: ${item.code}`}>
+                      <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[110px]" title={`Mã Code: ${item.code}`}>
                         Code: {item.code}
                       </div>
                     )}
@@ -603,7 +615,7 @@ export default function QuanLyHoPage() {
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono font-bold text-slate-700 dark:text-slate-300 px-2">
+            <span className="font-bold text-slate-700 dark:text-slate-300 px-2">
               {page} / {totalPages}
             </span>
             <button
@@ -787,7 +799,7 @@ export default function QuanLyHoPage() {
                           min={8} max={32}
                           value={formData.pwdLength}
                           onChange={e => setFormData(f => ({ ...f, pwdLength: Number(e.target.value) }))}
-                          className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-center"
+                          className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-center font-medium"
                         />
                       </label>
                       <label className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-400 cursor-pointer">
@@ -811,7 +823,7 @@ export default function QuanLyHoPage() {
                         type={showPwd ? 'text' : 'password'}
                         value={formData.password}
                         onChange={e => setFormData(f => ({ ...f, password: e.target.value }))}
-                        className="form-input-qlh flex-1 pr-20 font-mono"
+                        className="form-input-qlh flex-1 pr-20 font-medium"
                         placeholder="Nhập hoặc tạo mật khẩu..."
                       />
                       <div className="absolute right-1 top-1 flex gap-0.5">
@@ -849,7 +861,7 @@ export default function QuanLyHoPage() {
                       placeholder="Code / Mã tra cứu..."
                       value={formData.code}
                       onChange={e => setFormData(f => ({ ...f, code: e.target.value }))}
-                      className="form-input-qlh font-mono"
+                      className="form-input-qlh font-medium"
                     />
                   </FormField>
 
@@ -985,6 +997,18 @@ export default function QuanLyHoPage() {
         }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
       `}</style>
+
+      {/* ── DELETE SYSTEM MODAL ── */}
+      <DeleteSystemModal
+        isOpen={isDeleteSystemModalOpen}
+        onClose={() => setIsDeleteSystemModalOpen(false)}
+        onSuccess={() => {
+          refetch();
+          setCopyAlert('Đã xóa hệ thống thành công trên toàn bộ hệ thống!');
+          setTimeout(() => setCopyAlert(''), 3000);
+        }}
+        initialSystemName={filterSystem !== 'ALL' ? filterSystem : ''}
+      />
     </div>
   );
 }

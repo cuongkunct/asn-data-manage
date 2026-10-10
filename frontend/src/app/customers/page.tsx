@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Users, Plus, Search, RefreshCw, Edit, Trash2, 
+import {
+  Users, Plus, Search, RefreshCw, Edit, Trash2,
   Check, X, ChevronLeft, ChevronRight, Star, ArrowLeftRight, MessageSquare,
   FolderTree, ChevronDown
 } from 'lucide-react';
 import { useI18n } from '../../context/i18nContext';
 import { syncCustomerQueries } from '@/utils/syncQueries';
+import { formatCustomerLevel, normalizeCustomerLevel } from '@/utils/customerLevel';
 
 interface CustomerTreeNode {
   item: any;
@@ -46,9 +47,10 @@ export default function CustomersPage() {
   // Form input state (matching Screenshot 2 fields)
   const [formData, setFormData] = useState({
     customerCode: '',
-    parentCustomerId: 'CTY',
+    parentId: '',
+    parentCustomerId: '',
     status: 'ACTIVE',
-    level: '1-0',
+    level: '1',
     ottApp: 'Telegram',
     manageOnBehalf: false, // Quản Lý Hộ
     notes: ''
@@ -81,6 +83,28 @@ export default function CustomersPage() {
       return res.json();
     }
   });
+
+  // Fetch Configs Query (Lấy dữ liệu động từ Cấu hình chung)
+  const { data: configsData } = useQuery({
+    queryKey: ['configs'],
+    queryFn: async () => {
+      const res = await fetch('/api/configs');
+      if (!res.ok) return { grouped: {} };
+      return res.json();
+    },
+    staleTime: 10 * 1000,
+  });
+  const configsGrouped = configsData?.grouped || {};
+  const customerStatusOptions = configsGrouped['customer_status'] || [];
+
+  const getStatusLabel = (statusCode: string) => {
+    const found = customerStatusOptions.find((o: any) => (o.code || '').toLowerCase() === (statusCode || '').toLowerCase());
+    if (found?.name) return found.name;
+    if (statusCode === 'ACTIVE') return 'Active';
+    if (statusCode === 'INACTIVE') return 'Inactive';
+    if (statusCode === 'CLOSED') return 'Closed';
+    return statusCode || 'Active';
+  };
 
   // ── XÂY DỰNG CẤU TRÚC CÂY KHÁCH HÀNG (TREE VIEW) ──
   const customerTreeNodes = useMemo<CustomerTreeNode[]>(() => {
@@ -248,37 +272,43 @@ export default function CustomersPage() {
     setEditingCust(null);
 
     let parentCode = '';
-    let autoLevel = '1-0';
+    let parentMongoId = '';
+    let autoLevel = '1';
 
     if (parentParam) {
       if (typeof parentParam === 'string') {
         parentCode = parentParam;
       } else if (typeof parentParam === 'object') {
         parentCode = parentParam.customerCode || '';
+        parentMongoId = parentParam._id || '';
       }
 
       // Tìm thông tin khách hàng cha
       const parentObj = typeof parentParam === 'object' && parentParam.level
         ? parentParam
-        : data?.items?.find((c: any) => c.customerCode === parentCode);
+        : data?.items?.find((c: any) => c.customerCode === parentCode || c._id === parentMongoId);
 
       if (parentObj) {
-        // Tự động gen cấp độ: 1-0 -> 2-1 -> 3-2 -> 4-3...
-        const match = (parentObj.level || '').match(/^(\d+)/);
+        if (!parentMongoId) parentMongoId = parentObj._id || '';
+        if (!parentCode) parentCode = parentObj.customerCode || '';
+        // Tự động tăng cấp độ
+        const match = (String(parentObj.level || '')).match(/^(\d+)/);
         const parentLevelNum = match ? parseInt(match[1], 10) : 1;
-        autoLevel = `${parentLevelNum + 1}-${parentLevelNum}`;
+        autoLevel = String(parentLevelNum + 1);
       } else {
-        autoLevel = '2-1';
+        autoLevel = '2';
       }
     } else {
       // Cây đầu tiên
-      autoLevel = '1-0';
+      autoLevel = '1';
     }
 
+    const defaultStatus = customerStatusOptions[0]?.code || 'ACTIVE';
     setFormData({
       customerCode: '',
-      parentCustomerId: parentCode || 'CTY',
-      status: 'ACTIVE',
+      parentId: parentMongoId || '',
+      parentCustomerId: parentCode || '',
+      status: defaultStatus,
       level: autoLevel,
       ottApp: 'Telegram',
       manageOnBehalf: false,
@@ -291,9 +321,10 @@ export default function CustomersPage() {
     setEditingCust(cust);
     setFormData({
       customerCode: cust.customerCode || '',
-      parentCustomerId: cust.parentCustomerId || 'CTY',
+      parentId: cust.parentId || '',
+      parentCustomerId: cust.parentCustomerId || '',
       status: cust.status || 'ACTIVE',
-      level: cust.level || '1-1',
+      level: normalizeCustomerLevel(cust.level),
       ottApp: cust.ottApps?.[0] || 'Telegram',
       manageOnBehalf: Boolean(cust.manageOnBehalf),
       notes: cust.notes || ''
@@ -308,11 +339,18 @@ export default function CustomersPage() {
       return;
     }
 
+    const cleanParent = formData.parentCustomerId.trim();
+    let finalParentId: string | null = formData.parentId || null;
+    if (!finalParentId && cleanParent && cleanParent.toLowerCase() !== 'cty') {
+      const found = (data?.items || []).find((c: any) => c.customerCode.toLowerCase() === cleanParent.toLowerCase());
+      finalParentId = found ? found._id : (cleanParent || null);
+    }
+
     const payload = {
-      customerCode: formData.customerCode.trim(),
-      parentCustomerId: formData.parentCustomerId.trim() || 'CTY',
+      customerCode: formData.customerCode.trim().toUpperCase(),
+      parentId: finalParentId || null,
       status: formData.status,
-      level: formData.level || '1-1',
+      level: normalizeCustomerLevel(formData.level),
       ottApps: [formData.ottApp],
       manageOnBehalf: formData.manageOnBehalf,
       notes: formData.notes
@@ -410,6 +448,28 @@ export default function CustomersPage() {
             <option value="NO">Không QLH</option>
           </select>
 
+          {/* Trạng thái khách hàng select */}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="py-1.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 font-medium focus:outline-none"
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            {customerStatusOptions.length > 0 ? (
+              customerStatusOptions.map((s: any) => (
+                <option key={s.id || s.code} value={s.code || s.name}>
+                  {s.name || s.code}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="ACTIVE">Hoạt động (ACTIVE)</option>
+                <option value="INACTIVE">Tạm ngưng (INACTIVE)</option>
+                <option value="CLOSED">Đóng/Khóa (CLOSED)</option>
+              </>
+            )}
+          </select>
+
           {/* Action Buttons: [X], [Refresh] */}
           <button
             onClick={handleClearFilters}
@@ -502,9 +562,8 @@ export default function CustomersPage() {
                   return (
                     <tr
                       key={cust.customerCode || cust._id}
-                      className={`hover:bg-amber-50/20 dark:hover:bg-amber-500/5 transition ${
-                        node.depth > 0 ? 'bg-slate-50/50 dark:bg-slate-950/25' : ''
-                      }`}
+                      className={`hover:bg-amber-50/20 dark:hover:bg-amber-500/5 transition ${node.depth > 0 ? 'bg-slate-50/50 dark:bg-slate-950/25' : ''
+                        }`}
                     >
                       {/* MÃ KH (Hierarchical Tree Cell) */}
                       <td className="py-3 px-3">
@@ -513,7 +572,7 @@ export default function CustomersPage() {
                           className="flex items-center gap-1.5"
                         >
                           {node.depth > 0 && (
-                            <span className="text-slate-300 dark:text-slate-700 font-mono text-xs select-none">
+                            <span className="text-slate-300 dark:text-slate-700 text-xs select-none">
                               └─
                             </span>
                           )}
@@ -526,19 +585,17 @@ export default function CustomersPage() {
                               title={isExpanded ? 'Thu gọn cấp dưới' : 'Mở rộng cấp dưới'}
                             >
                               <span
-                                className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${
-                                  isExpanded
+                                className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${isExpanded
                                     ? 'bg-amber-500 text-white shadow-sm'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200'
-                                }`}
+                                  }`}
                               >
                                 <ChevronRight
-                                  className={`w-3 h-3 transition-transform duration-200 ${
-                                    isExpanded ? 'rotate-90' : ''
-                                  }`}
+                                  className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''
+                                    }`}
                                 />
                               </span>
-                              <span className="font-mono font-extrabold text-slate-900 dark:text-white text-xs group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
+                              <span className="font-extrabold text-slate-900 dark:text-white text-xs group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
                                 {cust.customerCode}
                               </span>
                               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -547,7 +604,7 @@ export default function CustomersPage() {
                             </button>
                           ) : (
                             <div className="flex items-center gap-1.5 pl-4">
-                              <span className="font-mono font-extrabold text-slate-900 dark:text-white text-xs">
+                              <span className="font-extrabold text-slate-900 dark:text-white text-xs">
                                 {cust.customerCode}
                               </span>
                             </div>
@@ -556,17 +613,16 @@ export default function CustomersPage() {
                       </td>
 
                       {/* CẤP TRÊN */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
-                        {cust.parentCustomerId || 'CTY'}
+                      <td className="py-3 px-3 font-bold text-slate-700 dark:text-slate-300">
+                        {cust.parentCustomerId || '—'}
                       </td>
 
                       {/* QUẢN LÝ HỘ */}
                       <td className="py-3 px-3">
-                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold border ${
-                          cust.manageOnBehalf
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold border ${cust.manageOnBehalf
                             ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                             : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                        }`}>
+                          }`}>
                           {cust.manageOnBehalf ? 'Có' : 'Không'}
                         </span>
                       </td>
@@ -574,27 +630,26 @@ export default function CustomersPage() {
                       {/* CẤP */}
                       <td className="py-3 px-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          <span>{cust.level || '1-1'}</span>
+                          <span>{formatCustomerLevel(cust.level)}</span>
                           <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
                         </span>
                       </td>
 
                       {/* TRẠNG THÁI */}
                       <td className="py-3 px-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                          cust.status === 'ACTIVE'
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${cust.status === 'ACTIVE'
                             ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                             : cust.status === 'CLOSED'
-                            ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-200'
-                            : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
-                        }`}>
-                          {cust.status === 'ACTIVE' ? 'Active' : cust.status === 'CLOSED' ? 'Closed' : (cust.status || 'Active')}
+                              ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-slate-200'
+                              : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                          }`}>
+                          {getStatusLabel(cust.status)}
                         </span>
                       </td>
 
                       {/* THÔNG TIN */}
                       <td className="py-3 px-3 max-w-[200px]">
-                        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 line-clamp-1" title={cust.notes}>
+                        <span className="text-[11px] text-slate-700 dark:text-slate-300 line-clamp-1" title={cust.notes}>
                           {cust.notes || '—'}
                         </span>
                       </td>
@@ -607,7 +662,7 @@ export default function CustomersPage() {
                       </td>
 
                       {/* THỜI GIAN TẠO */}
-                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      <td className="py-3 px-3 text-[10px] text-slate-400 dark:text-slate-500">
                         {cust.createdAt ? new Date(cust.createdAt).toLocaleString('vi-VN') : '01/01/2024 00:00:00'}
                       </td>
 
@@ -686,11 +741,10 @@ export default function CustomersPage() {
                     <button
                       key={pNum}
                       onClick={() => setPage(pNum)}
-                      className={`w-7 h-7 rounded-lg font-bold text-xs transition ${
-                        page === pNum
+                      className={`w-7 h-7 rounded-lg font-bold text-xs transition ${page === pNum
                           ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
                           : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
+                        }`}
                     >
                       {pNum}
                     </button>
@@ -714,13 +768,13 @@ export default function CustomersPage() {
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col">
-            
+
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-950/40">
               <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
                 {editingCust ? 'Sửa Khách Hàng' : 'Thêm Khách Hàng'}
               </h3>
-              <button 
+              <button
                 onClick={() => setIsFormOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
@@ -730,7 +784,7 @@ export default function CustomersPage() {
 
             {/* Modal Body Form Scrollable */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
-              
+
               {/* SECTION 1: THÔNG TIN KHÁCH HÀNG */}
               <div>
                 <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -750,25 +804,48 @@ export default function CustomersPage() {
                       placeholder="VD: A01, A02..."
                       value={formData.customerCode}
                       onChange={(e) => setFormData({ ...formData, customerCode: e.target.value })}
-                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
 
                   {/* Cấp Trên */}
                   <div>
                     <label className="block text-slate-600 dark:text-slate-400 font-bold mb-1">
-                      Cấp Trên
+                      Cấp Trên {formData.parentId && <span className="text-[10px] text-amber-500 font-normal">(ID: {formData.parentId})</span>}
                     </label>
-                    <input
-                      type="text"
-                      placeholder="VD: CTY, A01..."
-                      value={formData.parentCustomerId}
-                      onChange={(e) => setFormData({ ...formData, parentCustomerId: e.target.value })}
-                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list="parent-customer-list"
+                        placeholder="Bỏ trống nếu không có cấp trên, hoặc chọn/nhập mã hoặc ID cấp trên..."
+                        value={formData.parentCustomerId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const matched = (data?.items || []).find((c: any) =>
+                            c.customerCode.toLowerCase() === val.trim().toLowerCase() ||
+                            c._id === val.trim()
+                          );
+                          setFormData({
+                            ...formData,
+                            parentCustomerId: val,
+                            parentId: matched ? matched._id : ''
+                          });
+                        }}
+                        className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <datalist id="parent-customer-list">
+                        {(data?.items || [])
+                          .filter((c: any) => !editingCust || c.customerCode !== editingCust.customerCode)
+                          .map((c: any) => (
+                            <option key={c._id} value={c.customerCode}>
+                              Mã: {c.customerCode} • Cấp {formatCustomerLevel(c.level)} • ID Mongo: {c._id}
+                            </option>
+                          ))}
+                      </datalist>
+                    </div>
                   </div>
 
-                  {/* Trạng Thái * */}
+                  {/* Trạng Thái * (Lấy từ Cấu hình chung) */}
                   <div>
                     <label className="block text-slate-600 dark:text-slate-400 font-bold mb-1">
                       Trạng Thái <span className="text-rose-500">*</span>
@@ -778,9 +855,19 @@ export default function CustomersPage() {
                       onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                      <option value="CLOSED">Closed</option>
+                      {customerStatusOptions.length > 0 ? (
+                        customerStatusOptions.map((s: any) => (
+                          <option key={s.id || s.code} value={s.code || s.name}>
+                            {s.name ? `${s.name} (${s.code})` : s.code}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="ACTIVE">Hoạt động (ACTIVE)</option>
+                          <option value="INACTIVE">Tạm ngưng (INACTIVE)</option>
+                          <option value="CLOSED">Đóng/Khóa (CLOSED)</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -791,7 +878,7 @@ export default function CustomersPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="VD: 1-0, 2-1, 3-2..."
+                      placeholder="VD: 1 (hiển thị 1-0), 2 (hiển thị 2-1), 0 (hiển thị 0-0)..."
                       value={formData.level}
                       onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                       className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -827,14 +914,12 @@ export default function CustomersPage() {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, manageOnBehalf: !formData.manageOnBehalf })}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          formData.manageOnBehalf ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.manageOnBehalf ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
                       >
                         <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                            formData.manageOnBehalf ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${formData.manageOnBehalf ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>

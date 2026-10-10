@@ -18,6 +18,7 @@ import dashboardRouter from './routes/dashboard.router';
 import historyRouter from './routes/history.router';
 import usersRouter from './routes/users.router';
 import quanLyHoRouter from './routes/quan-ly-ho.router';
+import swaggerRouter from './routes/swagger.router';
 
 import { authenticateJWT } from './middlewares/auth.middleware';
 
@@ -45,6 +46,12 @@ app.get(['/', '/health', '/api/health'], (req, res) => {
     service: 'ASM Backend Modular Monolith',
     timestamp: new Date().toISOString()
   });
+});
+
+// Swagger API Documentation & Specification (Public)
+app.use(['/swagger', '/api-docs', '/docs'], swaggerRouter);
+app.get('/swagger.json', (req, res) => {
+  res.redirect('/swagger/swagger.json');
 });
 
 // Unprotected Auth Routes

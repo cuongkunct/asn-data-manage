@@ -10,6 +10,8 @@ import {
 import { useI18n } from '../../context/i18nContext';
 import { syncAccountQueries } from '@/utils/syncQueries';
 import SearchableSelect, { SearchableOption } from '@/components/SearchableSelect';
+import DeleteSystemModal from '@/components/DeleteSystemModal';
+import { formatCustomerLevel } from '@/utils/customerLevel';
 
 interface AccountTreeNode {
   item: any;
@@ -59,6 +61,7 @@ export default function AccountsPage() {
 
   // Modals & Drawer State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteSystemModalOpen, setIsDeleteSystemModalOpen] = useState(false);
   const [editingAcc, setEditingAcc] = useState<any>(null);
   const [subAccountsDrawerOpen, setSubAccountsDrawerOpen] = useState(false);
   const [selectedSubAccountAcc, setSelectedSubAccountAcc] = useState<any>(null);
@@ -276,7 +279,7 @@ export default function AccountsPage() {
       subLabel: c.customerName
         ? `${c.customerName}${c.parentCustomerId ? ` • Cấp trên: ${c.parentCustomerId}` : ''}`
         : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : undefined),
-      badge: c.level || (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
+      badge: c.level ? formatCustomerLevel(c.level) : (c.parentCustomerId ? `Cấp trên: ${c.parentCustomerId}` : 'Gốc'),
     }));
   }, [customerOptions]);
 
@@ -397,7 +400,7 @@ export default function AccountsPage() {
       cutRetail: acc.cutRetail || '',
       customerCode: acc.customerCode || '',
       accountName: acc.accountName || '',
-      loginName: acc.loginName || acc.code || '',
+      loginName: acc.loginName || '',
       password: acc.password || '',
       code: acc.code || '',
       notes: acc.notes || '',
@@ -467,31 +470,31 @@ export default function AccountsPage() {
     e.preventDefault();
     setSaveMode(mode);
 
-    // Build subAccounts array cleanly
+    // Build subAccounts array cleanly (trimmed and uppercase for username)
     const subAccountsPayload = subAccountsList
       .filter(s => s.username.trim() || s.password.trim())
       .map(s => ({
         id: s.id,
         subName: s.subName || 'Sub Account',
-        username: s.username.trim(),
+        username: s.username.trim().toUpperCase(),
         password: s.password
       }));
 
     const payload = {
-      accountId: formData.accountId,
-      systemId: formData.systemId,
-      supplierId: formData.supplierId,
-      productId: formData.productId,
+      accountId: (formData.accountId || '').trim().toUpperCase(),
+      systemId: (formData.systemId || '').trim().toUpperCase(),
+      supplierId: (formData.supplierId || '').trim().toUpperCase(),
+      productId: (formData.productId || '').trim().toUpperCase(),
       accountType: formData.accountType,
       status: formData.status,
       accountLevel: formData.accountLevel,
       managedBy: formData.managedBy,
       cutRetail: formData.cutRetail,
-      customerCode: formData.customerCode,
-      accountName: formData.accountName,
-      loginName: formData.loginName,
+      customerCode: (formData.customerCode || '').trim().toUpperCase(),
+      accountName: (formData.accountName || '').trim().toUpperCase(),
+      loginName: (formData.loginName || '').trim(),
       password: formData.password,
-      code: formData.code || formData.loginName,
+      code: (formData.code || '').trim().toUpperCase(),
       notes: formData.notes,
       subAccounts: subAccountsPayload
     };
@@ -649,12 +652,9 @@ export default function AccountsPage() {
           )}
 
           <button
-            onClick={() => {
-              if (confirm('Xác nhận xóa hệ thống được chọn?')) {
-                showToast('Đã xóa dữ liệu.');
-              }
-            }}
+            onClick={() => setIsDeleteSystemModalOpen(true)}
             className="px-3 py-1.5 rounded-xl bg-rose-500/90 hover:bg-rose-600 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
+            title="Xóa toàn bộ tài khoản theo hệ thống hoặc nhà cung cấp"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Xóa HT</span>
@@ -724,9 +724,8 @@ export default function AccountsPage() {
                   return (
                     <tr
                       key={acc._id || acc.accountId}
-                      className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition group ${
-                        node.depth > 0 ? 'bg-slate-50/50 dark:bg-slate-950/25' : ''
-                      }`}
+                      className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition group ${node.depth > 0 ? 'bg-slate-50/50 dark:bg-slate-950/25' : ''
+                        }`}
                     >
                       {/* HỆ THỐNG / NCC */}
                       <td className="py-3 px-3">
@@ -742,7 +741,7 @@ export default function AccountsPage() {
                       </td>
 
                       {/* MÃ KH */}
-                      <td className="py-3 px-3 font-mono font-extrabold text-slate-900 dark:text-white text-xs">
+                      <td className="py-3 px-3 font-extrabold text-slate-900 dark:text-white text-xs">
                         {acc.customerCode || 'CTY'}
                       </td>
 
@@ -753,7 +752,7 @@ export default function AccountsPage() {
                           className="flex items-center gap-1.5"
                         >
                           {node.depth > 0 && (
-                            <span className="text-slate-300 dark:text-slate-700 font-mono text-xs select-none">
+                            <span className="text-slate-300 dark:text-slate-700 text-xs select-none">
                               └─
                             </span>
                           )}
@@ -766,24 +765,22 @@ export default function AccountsPage() {
                               title={isExpanded ? 'Thu gọn cấp dưới' : 'Mở rộng cấp dưới'}
                             >
                               <span
-                                className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${
-                                  isExpanded
+                                className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${isExpanded
                                     ? 'bg-amber-500 text-white shadow-sm'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200'
-                                }`}
+                                  }`}
                               >
                                 <ChevronRight
-                                  className={`w-3 h-3 transition-transform duration-200 ${
-                                    isExpanded ? 'rotate-90' : ''
-                                  }`}
+                                  className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''
+                                    }`}
                                 />
                               </span>
                               <div className="flex flex-col text-left">
                                 <span className="font-extrabold text-indigo-600 dark:text-indigo-400 text-xs truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
                                   {acc.accountName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                                  {acc.loginName || acc.code || '—'}
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                  {acc.loginName || (acc.code ? `Code: ${acc.code}` : '—')}
                                 </span>
                               </div>
                               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -795,8 +792,8 @@ export default function AccountsPage() {
                               <span className="font-extrabold text-indigo-600 dark:text-indigo-400 text-xs truncate">
                                 {acc.accountName}
                               </span>
-                              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                                {acc.loginName || acc.code || '—'}
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                                {acc.loginName || (acc.code ? `Code: ${acc.code}` : '—')}
                               </span>
                             </div>
                           )}
@@ -806,7 +803,7 @@ export default function AccountsPage() {
                       {/* PASS / CODE */}
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200">
+                          <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
                             {acc.password ? (isPassVisible ? acc.password : '••••••••••') : '—'}
                           </span>
                           {acc.password && (
@@ -832,7 +829,7 @@ export default function AccountsPage() {
                           )}
                         </div>
                         {acc.code && (
-                          <div className="text-[10px] font-mono font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">
+                          <div className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">
                             Code: {acc.code}
                           </div>
                         )}
@@ -921,9 +918,7 @@ export default function AccountsPage() {
 
         {/* Footer Pagination Bar */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <div>
-            Hiển thị <span className="font-bold text-slate-900 dark:text-white">{data?.total > 0 ? ((page - 1) * limit) + 1 : 0}</span> - <span className="font-bold text-slate-900 dark:text-white">{Math.min(page * limit, data?.total || 0)}</span> trong <span className="font-bold text-slate-900 dark:text-white">{data?.total || 0}</span> bản ghi
-          </div>
+
 
           <div className="flex items-center gap-2">
             <button
@@ -1196,7 +1191,7 @@ export default function AccountsPage() {
                       placeholder="Tên đăng nhập hệ thống..."
                       value={formData.loginName}
                       onChange={(e) => setFormData({ ...formData, loginName: e.target.value })}
-                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
                 </div>
@@ -1213,7 +1208,7 @@ export default function AccountsPage() {
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2 font-bold">
                       <span className="text-slate-500">ĐỘ DÀI</span>
-                      <span className="font-mono text-sm text-slate-900 dark:text-white font-black">{pwdLength}</span>
+                      <span className="text-sm text-slate-900 dark:text-white font-black">{pwdLength}</span>
                       <input
                         type="range"
                         min={8} max={32}
@@ -1247,7 +1242,7 @@ export default function AccountsPage() {
                         required
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full p-2.5 pr-16 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full p-2.5 pr-16 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                         placeholder="Mật khẩu..."
                       />
                       <div className="absolute right-1.5 flex items-center gap-1">
@@ -1284,7 +1279,7 @@ export default function AccountsPage() {
                         type="text"
                         value={formData.code}
                         onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                        className="w-full p-2.5 pr-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-full p-2.5 pr-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                         placeholder="VD: 666888..."
                       />
                       <button
@@ -1354,7 +1349,7 @@ export default function AccountsPage() {
                           placeholder={`Tên đăng nhập ${sub.subName}...`}
                           value={sub.username}
                           onChange={(e) => handleUpdateSubAccount(idx, 'username', e.target.value)}
-                          className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
                         />
                       </div>
                       <div>
@@ -1378,7 +1373,7 @@ export default function AccountsPage() {
                             placeholder={`Mật khẩu ${sub.subName}...`}
                             value={sub.password}
                             onChange={(e) => handleUpdateSubAccount(idx, 'password', e.target.value)}
-                            className="w-full p-2 pr-14 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className="w-full p-2 pr-14 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
                           />
                           <div className="absolute right-1.5 flex items-center gap-1">
                             <button
@@ -1460,7 +1455,7 @@ export default function AccountsPage() {
                   <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
                     Sub Accounts: {selectedSubAccountAcc.accountName}
                   </h3>
-                  <p className="text-xs text-slate-500 font-mono">
+                  <p className="text-xs text-slate-500">
                     Parent ID: {selectedSubAccountAcc.accountId}
                   </p>
                 </div>
@@ -1477,9 +1472,9 @@ export default function AccountsPage() {
                     <div key={idx} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
                       <div className="flex justify-between font-bold text-slate-900 dark:text-white">
                         <span>{sub.subName}</span>
-                        <span className="font-mono text-indigo-500">{sub.username}</span>
+                        <span className="text-indigo-500 font-semibold">{sub.username}</span>
                       </div>
-                      <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                         <span>Pass: {sub.password || '••••••••'}</span>
                         <button
                           onClick={() => {
@@ -1508,6 +1503,18 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
+
+      {/* ── 5. DELETE SYSTEM MODAL ── */}
+      <DeleteSystemModal
+        isOpen={isDeleteSystemModalOpen}
+        onClose={() => setIsDeleteSystemModalOpen(false)}
+        onSuccess={() => {
+          refetch();
+          showToast('Đã xóa hệ thống thành công trên toàn bộ hệ thống!');
+        }}
+        initialSystemName={systemId !== 'ALL' ? systemId : ''}
+        initialSupplierName={supplierId !== 'ALL' ? supplierId : ''}
+      />
     </div>
   );
 }

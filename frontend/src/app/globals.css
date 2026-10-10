@@ -18,10 +18,13 @@
   --border-color: #1f2937;
 }
 
+*, body, button, input, select, textarea, table, code, pre, span, p, div, h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans), 'Be Vietnam Pro', system-ui, -apple-system, sans-serif !important;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-main);
-  font-family: var(--font-sans), 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 

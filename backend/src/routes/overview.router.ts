@@ -1,11 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { CustomerModel, AccountModel, SystemAccountModel, CustomerNoteModel, AuditHistoryModel } from '../database/db';
+import { escapeRegex } from '../utils/normalize';
 
 const router = Router();
-
-function escapeRegex(text: string) {
-  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-}
 
 // GET /api/overview/suggestions?q=
 router.get('/suggestions', async (req: Request, res: Response) => {
@@ -59,6 +56,7 @@ router.get('/lookup', async (req: Request, res: Response) => {
   let accounts = await AccountModel.find({ 
     $or: [
       { customerCode: { $regex: targetRegex } },
+      { customerCode: { $regex: queryRegex } },
       { accountId: { $regex: queryRegex } },
       { accountName: { $regex: queryRegex } }
     ] 
@@ -66,29 +64,36 @@ router.get('/lookup', async (req: Request, res: Response) => {
 
   if (!customer && accounts.length > 0) {
     targetCustomerCode = accounts[0].customerCode;
-    customer = await CustomerModel.findOne({ customerCode: targetCustomerCode }).lean();
+    customer = await CustomerModel.findOne({ customerCode: { $regex: new RegExp(`^${escapeRegex(targetCustomerCode)}$`, 'i') } }).lean();
   }
 
   // Find system accounts
   const systemAccounts = await SystemAccountModel.find({ 
     $or: [
-      { customerCode: targetCustomerCode },
-      { customerCode: { $regex: queryRegex } }
+      { customerCode: { $regex: targetRegex } },
+      { customerCode: { $regex: queryRegex } },
+      { systemUsername: { $regex: queryRegex } },
+      { systemAccountId: { $regex: queryRegex } }
     ]
   }).lean();
 
   // Find notes
   const notes = await CustomerNoteModel.find({ 
     $or: [
-      { customerCode: targetCustomerCode },
-      { customerCode: { $regex: queryRegex } }
+      { customerCode: { $regex: targetRegex } },
+      { customerCode: { $regex: queryRegex } },
+      { applicableCustomer: { $regex: queryRegex } },
+      { accountId: { $regex: queryRegex } }
     ]
   }).lean();
 
   // Find history
   const accountIds = accounts.map(a => a.accountId);
   const history = await AuditHistoryModel.find({ 
-    objectId: { $in: [targetCustomerCode, query, ...accountIds] } 
+    $or: [
+      { objectId: { $in: [targetCustomerCode, query, ...accountIds] } },
+      { objectId: { $regex: queryRegex } }
+    ]
   }).sort({ createdAt: -1 }).limit(20).lean();
 
   return res.json({

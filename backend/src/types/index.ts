@@ -16,16 +16,28 @@ export interface IUser {
 
 export interface ICustomer {
   _id?: string;
-  customerCode: string; // e.g. CUS_001
-  parentCustomerId?: string | null;
-  status: 'ACTIVE' | 'INACTIVE' | 'DELETED';
-  level: string; // A, B, VIP...
+  parentId?: any; // MongoDB ObjectId of parent customer
+  parentCustomerId?: string | null; // Customer code of parent
+  status: 'ACTIVE' | 'INACTIVE' | 'DELETED' | 'LOCKED' | string;
+  level: string; // 1, 2, 0, etc. (normalized)
   ottApps: string[]; // Telegram, Zalo, WhatsApp, etc.
   manageOnBehalf: boolean;
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export interface CreateCustomerDto {
+  customerCode: string;
+  parentId?: string | null;
+  status: string;
+  level?: string;
+  ottApps?: string[] | string;
+  manageOnBehalf?: boolean;
+  notes?: string;
+}
+
+export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {}
 
 export interface ISubAccount {
   id: string;
@@ -42,9 +54,10 @@ export interface IAccount {
   supplierId: string; // SUP_001
   productId: string; // PRO_001
   accountType: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING';
+  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING' | 'CLOSED' | 'CLOSED_CDL' | 'SUSPEND' | 'SECURITY' | 'UNASSIGNED';
   accountLevel: string;
   managedBy: string; // User ID / Username
+  banker?: string; // Banker
   cutRetail?: string; // Cắt lẻ
   customerCode: string; // Linked Customer Code
   accountName: string;
@@ -65,9 +78,10 @@ export interface IQLHAccount {
   supplierId: string;
   productId: string;
   accountType: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING';
+  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING' | 'CLOSED' | 'CLOSED_CDL' | 'SUSPEND' | 'SECURITY' | 'UNASSIGNED';
   accountLevel: string;
   managedBy: string;
+  banker?: string; // Banker
   cutRetail?: string;
   customerCode: string;
   accountName: string;
@@ -88,8 +102,9 @@ export interface ISystemAccount {
   productId: string;
   accountLevel: string;
   accountType: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING';
+  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DELETED' | 'PENDING' | 'CLOSED' | 'UNASSIGNED';
   customerCode?: string;
+  banker?: string; // Banker
   parentCustomerId?: string;
   parentAccountId?: string | null; // For hierarchy AA -> AAB -> AABC
   systemUsername: string;

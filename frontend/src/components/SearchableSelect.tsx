@@ -67,9 +67,11 @@ export default function SearchableSelect({
     }
   }, [isOpen, allowCustom]);
 
-  // Find currently selected option object if matches
+  // Find currently selected option object if matches (case-insensitive)
   const selectedOption = useMemo(() => {
-    return options.find(opt => opt.value === value || opt.label === value);
+    if (!value) return undefined;
+    const v = value.trim().toLowerCase();
+    return options.find(opt => (opt.value || '').trim().toLowerCase() === v || (opt.label || '').trim().toLowerCase() === v);
   }, [options, value]);
 
   // Filter options based on dropdown search term
@@ -92,8 +94,9 @@ export default function SearchableSelect({
 
     const sliced = filteredOptions.slice(0, maxVisibleOptions);
     // Nếu option đang chọn nằm ngoài top N, đảm bảo đưa vào danh sách để luôn thấy checkmark
-    if (value && !sliced.some(o => o.value === value || o.label === value)) {
-      const selected = filteredOptions.find(o => o.value === value || o.label === value);
+    const v = (value || '').trim().toLowerCase();
+    if (value && !sliced.some(o => (o.value || '').trim().toLowerCase() === v || (o.label || '').trim().toLowerCase() === v)) {
+      const selected = filteredOptions.find(o => (o.value || '').trim().toLowerCase() === v || (o.label || '').trim().toLowerCase() === v);
       if (selected) {
         sliced.unshift(selected);
       }
@@ -170,7 +173,7 @@ export default function SearchableSelect({
           <div className="flex items-center gap-2 overflow-hidden truncate">
             {selectedOption ? (
               <div className="flex items-center gap-2 truncate">
-                <span className="font-mono font-bold text-slate-900 dark:text-white">
+                <span className="font-bold text-slate-900 dark:text-white">
                   {selectedOption.label}
                 </span>
                 {selectedOption.badge && (
@@ -185,7 +188,7 @@ export default function SearchableSelect({
                 )}
               </div>
             ) : value ? (
-              <span className="font-mono font-bold text-slate-900 dark:text-white truncate">
+              <span className="font-bold text-slate-900 dark:text-white truncate">
                 {value}
               </span>
             ) : (
@@ -245,7 +248,7 @@ export default function SearchableSelect({
             <div className="p-2 border-b border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs flex items-center justify-between text-amber-700 dark:text-amber-300">
               <div className="flex items-center gap-1.5 truncate">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="truncate">Giá trị tùy chỉnh hiện tại: <strong className="font-mono font-bold">{value}</strong></span>
+                <span className="truncate">Giá trị tùy chỉnh hiện tại: <strong className="font-bold">{value}</strong></span>
               </div>
               <button
                 type="button"
@@ -278,7 +281,8 @@ export default function SearchableSelect({
             ) : (
               <>
                 {visibleOptions.map((opt) => {
-                  const isSelected = opt.value === value || opt.label === value;
+                  const targetV = (value || '').trim().toLowerCase();
+                  const isSelected = (opt.value || '').trim().toLowerCase() === targetV || (opt.label || '').trim().toLowerCase() === targetV;
                   return (
                     <button
                       key={opt.value}
@@ -292,7 +296,7 @@ export default function SearchableSelect({
                     >
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">{opt.label}</span>
+                          <span className="font-bold">{opt.label}</span>
                           {opt.badge && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                               {opt.badge}

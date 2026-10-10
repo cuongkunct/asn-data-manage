@@ -37,7 +37,7 @@ export default function LoginPage() {
             W
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
-            ASM <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono">ASM v1.0</span>
+            ASM <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold">ASM v1.0</span>
           </h1>
           <p className="text-xs text-slate-400">
             Hệ thống Quản lý Dữ liệu Tài khoản & Khách hàng ASM
@@ -51,7 +51,7 @@ export default function LoginPage() {
               <ShieldCheck className="w-5 h-5 text-amber-400" />
               <span>Đăng nhập hệ thống</span>
             </h2>
-            <span className="text-[10px] font-mono font-bold px-2 py-1 rounded bg-slate-800 text-slate-400">JWT Authenticated</span>
+            <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 text-slate-400">JWT Authenticated</span>
           </div>
 
           {errorMsg && (
